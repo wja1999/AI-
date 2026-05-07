@@ -3,7 +3,6 @@ import yfinance as yf
 import plotly.graph_objects as go
 from openai import OpenAI
 
-# ===== 页面配置 =====
 st.set_page_config(layout="wide")
 
 # ===== API =====
@@ -12,117 +11,82 @@ client = OpenAI(
     base_url="https://api.deepseek.com"
 )
 
-# ===== 轻量高级UI（玻璃感，不会炸）=====
-st.markdown("""
-<style>
-body {
-    background: linear-gradient(135deg, #eef2f7, #f8fbff);
-}
-
-.block-container {
-    padding-top: 2rem;
-}
-
-.stMetric {
-    background: rgba(255,255,255,0.6);
-    border-radius: 12px;
-    padding: 10px;
-    backdrop-filter: blur(10px);
-}
-
-.stButton>button {
-    border-radius: 10px;
-    height: 45px;
-    font-size: 16px;
-    background: linear-gradient(90deg, #4facfe, #00f2fe);
-    color: white;
-    border: none;
-}
-
-.stSelectbox, .stTextInput {
-    background: rgba(255,255,255,0.6);
-    border-radius: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ===== 标题 =====
+# ===== UI =====
 st.title("📊 AI股票分析平台")
 st.caption("趋势判断 · 风险提示 · 投资建议")
 
 # ===== 布局 =====
 left, right = st.columns([1, 2])
 
-# ================= 左侧 =================
 with left:
     st.subheader("⚙️ 参数设置")
 
     ticker = st.text_input("股票代码", "000066.SZ")
-    period = st.selectbox("周期", ["5d", "1mo", "3mo", "6mo"])
+    period = st.selectbox("周期", ["5d", "1mo", "3mo"])
     risk = st.selectbox("风险偏好", ["低", "中", "高"])
 
     run = st.button("🚀 开始分析", use_container_width=True)
 
-# ================= 右侧 =================
 with right:
-
     if run:
 
         data = yf.download(ticker, period=period)
 
         if data.empty:
-            st.error("❌ 没有获取到数据")
+            st.error("❌ 没有数据")
         else:
             data = data.reset_index()
 
-            # ===== 判断A股 / 美股 =====
+            # ===== 统一列名（关键修复）=====
+            data.columns = [col.lower() for col in data.columns]
+
+            # ===== 判断市场 =====
             is_cn = ".SZ" in ticker or ".SH" in ticker
 
-            # ===== K线图 =====
+            # ===== K线 =====
             fig = go.Figure()
 
             fig.add_trace(go.Candlestick(
-                x=data["Date"],
-                open=data["Open"],
-                high=data["High"],
-                low=data["Low"],
-                close=data["Close"],
+                x=data["date"],
+                open=data["open"],
+                high=data["high"],
+                low=data["low"],
+                close=data["close"],
                 increasing_line_color="red" if is_cn else "green",
                 decreasing_line_color="green" if is_cn else "red"
             ))
 
             fig.update_layout(
-                height=420,
-                margin=dict(l=10, r=10, t=30, b=10),
-                xaxis_rangeslider_visible=False,
-                plot_bgcolor='rgba(255,255,255,0.4)',
-                paper_bgcolor='rgba(0,0,0,0)'
+                height=400,
+                margin=dict(l=10, r=10, t=20, b=10),
+                xaxis_rangeslider_visible=False
             )
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # ===== KPI指标 =====
+            # ===== KPI（不会再报错）=====
             latest = data.iloc[-1]
-            change = latest["Close"] - latest["Open"]
-            pct = (change / latest["Open"]) * 100
 
-            k1, k2, k3, k4 = st.columns(4)
+            change = latest["close"] - latest["open"]
+            pct = (change / latest["open"]) * 100
 
-            k1.metric("💰 最新价", f"{latest['Close']:.2f}")
-            k2.metric("📈 涨跌", f"{change:.2f}")
-            k3.metric("📊 涨幅", f"{pct:.2f}%")
-            k4.metric("🔊 成交量", f"{latest['Volume']/1e6:.2f}M")
+            c1, c2, c3, c4 = st.columns(4)
 
-            # ===== AI分析 =====
+            c1.metric("最新价", f"{latest['close']:.2f}")
+            c2.metric("涨跌", f"{change:.2f}")
+            c3.metric("涨幅", f"{pct:.2f}%")
+            c4.metric("成交量", f"{latest['volume']/1e6:.2f}M")
+
+            # ===== AI =====
             prompt = f"""
 请用中文分析股票 {ticker}：
 
 {data.tail().to_string()}
 
-要求：
-1. 趋势判断（一句话）
-2. 买卖建议（明确）
-3. 风险提示（简洁）
+输出：
+1. 趋势（简短）
+2. 建议（买/观望/卖）
+3. 风险
 """
 
             response = client.chat.completions.create(
@@ -131,6 +95,6 @@ with right:
             )
 
             st.markdown("---")
-            st.subheader("🤖 AI分析结果")
+            st.subheader("🤖 AI分析")
 
             st.write(response.choices[0].message.content)
