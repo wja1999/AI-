@@ -56,15 +56,32 @@ if st.button("🚀 开始分析"):
     df["x"] = range(len(df))
 
     # ========= 6. K线 =========
-    fig = go.Figure(data=[go.Candlestick(
-        x=df["x"],
-        open=df["open"],
-        high=df["high"],
-        low=df["low"],
-        close=df["close"],
-        increasing_line_color="#00C853",
-        decreasing_line_color="#FF3D00"
-    )])
+# ======================
+# 🎯 判断市场（A股 or 美股）
+# ======================
+if ticker.endswith(".SZ") or ticker.endswith(".SS"):
+    # 👉 A股：涨红跌绿
+    up_color = "#FF3B30"     # 红
+    down_color = "#00C853"   # 绿
+else:
+    # 👉 美股：涨绿跌红
+    up_color = "#00C853"     # 绿
+    down_color = "#FF3B30"   # 红
+
+# ======================
+# 📈 K线
+# ======================
+fig = go.Figure(data=[go.Candlestick(
+    x=df["x"],
+    open=df["open"],
+    high=df["high"],
+    low=df["low"],
+    close=df["close"],
+    increasing_line_color="#FF3B30",
+    increasing_fillcolor="#FF3B30",
+    decreasing_line_color="#00C853",
+    decreasing_fillcolor="#00C853",
+)])
 
     fig.update_layout(
         template="plotly_dark",
