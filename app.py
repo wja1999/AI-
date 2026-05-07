@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
 from openai import OpenAI
+import pandas as pd
 
 st.set_page_config(layout="wide")
 
@@ -15,7 +16,6 @@ client = OpenAI(
 st.title("📊 AI股票分析平台")
 st.caption("趋势判断 · 风险提示 · 投资建议")
 
-# ===== 布局 =====
 left, right = st.columns([1, 2])
 
 with left:
@@ -32,13 +32,46 @@ with right:
 
         data = yf.download(ticker, period=period)
 
-        if data.empty:
-            st.error("❌ 没有数据")
+        if data is None or data.empty:
+            st.error("❌ 没有获取到数据")
         else:
-            data = data.reset_index()
+            # ===== 彻底兜底处理 =====
+            data = data.copy()
 
-            # ===== 统一列名（关键修复）=====
+            # reset index
+            if not isinstance(data.index, pd.RangeIndex):
+                data = data.reset_index()
+
+            # 展平列名（关键）
+            data.columns = [
+                "_".join(col) if isinstance(col, tuple) else str(col)
+                for col in data.columns
+            ]
+
+            # 全部小写
             data.columns = [col.lower() for col in data.columns]
+
+            # ===== 字段兼容 =====
+            def pick(col_list):
+                for c in col_list:
+                    if c in data.columns:
+                        return data[c]
+                return None
+
+            open_col = pick(["open"])
+            high_col = pick(["high"])
+            low_col = pick(["low"])
+            close_col = pick(["close", "adj close"])
+            volume_col = pick(["volume"])
+
+            date_col = pick(["date", "datetime"])
+
+            if date_col is None:
+                date_col = data.index
+
+            if close_col is None:
+                st.error("❌ 数据缺少收盘价，无法绘制K线")
+                st.stop()
 
             # ===== 判断市场 =====
             is_cn = ".SZ" in ticker or ".SH" in ticker
@@ -47,35 +80,42 @@ with right:
             fig = go.Figure()
 
             fig.add_trace(go.Candlestick(
-                x=data["date"],
-                open=data["open"],
-                high=data["high"],
-                low=data["low"],
-                close=data["close"],
+                x=date_col,
+                open=open_col if open_col is not None else close_col,
+                high=high_col if high_col is not None else close_col,
+                low=low_col if low_col is not None else close_col,
+                close=close_col,
                 increasing_line_color="red" if is_cn else "green",
                 decreasing_line_color="green" if is_cn else "red"
             ))
 
             fig.update_layout(
-                height=400,
+                height=420,
                 margin=dict(l=10, r=10, t=20, b=10),
                 xaxis_rangeslider_visible=False
             )
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # ===== KPI（不会再报错）=====
+            # ===== KPI（完全兜底）=====
             latest = data.iloc[-1]
 
-            change = latest["close"] - latest["open"]
-            pct = (change / latest["open"]) * 100
+            def safe_val(col):
+                return float(latest[col]) if col in latest and pd.notna(latest[col]) else 0
+
+            open_p = safe_val("open")
+            close_p = safe_val("close") if "close" in data.columns else safe_val("adj close")
+            volume = safe_val("volume")
+
+            change = close_p - open_p
+            pct = (change / open_p * 100) if open_p != 0 else 0
 
             c1, c2, c3, c4 = st.columns(4)
 
-            c1.metric("最新价", f"{latest['close']:.2f}")
+            c1.metric("最新价", f"{close_p:.2f}")
             c2.metric("涨跌", f"{change:.2f}")
             c3.metric("涨幅", f"{pct:.2f}%")
-            c4.metric("成交量", f"{latest['volume']/1e6:.2f}M")
+            c4.metric("成交量", f"{volume/1e6:.2f}M")
 
             # ===== AI =====
             prompt = f"""
@@ -89,12 +129,15 @@ with right:
 3. 风险
 """
 
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": prompt}]
-            )
+            try:
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": prompt}]
+                )
 
-            st.markdown("---")
-            st.subheader("🤖 AI分析")
+                st.markdown("---")
+                st.subheader("🤖 AI分析")
+                st.write(response.choices[0].message.content)
 
-            st.write(response.choices[0].message.content)
+            except Exception as e:
+                st.warning("⚠️ AI分析失败（可能是key或网络问题）")
