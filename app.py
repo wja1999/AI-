@@ -4,103 +4,112 @@ import pandas as pd
 import plotly.graph_objects as go
 from openai import OpenAI
 
-# ========= 🔑 在这里填 KEY =========
-client = OpenAI(
-    api_key="sk-34bde63deba4488c939677b2a93fbb01",   # ← 就填这里
-    base_url="https://api.deepseek.com"
-)
-
-# ========= 🎨 页面设置 =========
+# ========= 页面配置（手机友好） =========
 st.set_page_config(
     page_title="AI股票分析",
     layout="centered"
 )
 
+# ========= DeepSeek =========
+client = OpenAI(
+    api_key="sk-34bde63deba4488c939677b2a93fbb01",  # 👉 在这里填
+    base_url="https://api.deepseek.com"
+)
+
+# ========= UI 样式 =========
 st.markdown("""
 <style>
-.stApp {
-    background-color: #0e1117;
-    color: white;
+.block-container {
+    padding-top: 1rem;
 }
-.big-title {
-    font-size:28px;
-    font-weight:700;
-    text-align:center;
-    margin-bottom:10px;
-}
-.sub-text {
-    text-align:center;
-    color:#aaa;
-    margin-bottom:20px;
+.stButton>button {
+    width: 100%;
+    height: 48px;
+    font-size: 18px;
+    border-radius: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ========= 标题 =========
-st.markdown('<div class="big-title">📈 AI 股票分析</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-text">趋势判断 · 风险提示 · 买卖建议</div>', unsafe_allow_html=True)
+st.title("📈 AI 股票分析")
+st.caption("趋势判断 · 风险提示 · 买卖建议")
 
-# ========= 输入区 =========
-ticker = st.text_input("📊 股票代码", "000062.SZ")
+# ========= 输入 =========
+ticker = st.text_input("📊 股票代码", "AAPL")
 
 col1, col2 = st.columns(2)
-with col1:
-    period = st.selectbox("📅 周期", ["1mo", "3mo", "6mo"])
-with col2:
-    risk = st.selectbox("⚠️ 风险偏好", ["低", "中", "高"])
+period = col1.selectbox("📅 周期", ["1mo", "3mo", "6mo", "1y"])
+risk = col2.selectbox("⚠️ 风险偏好", ["低", "中", "高"])
 
 # ========= 按钮 =========
 if st.button("🚀 开始分析"):
 
-    with st.spinner("正在分析中..."):
+    # ===== 获取数据 =====
+    df = yf.download(ticker, period=period)
 
-        df = yf.download(ticker, period=period)
+    # 🚨 修复列问题（关键！！！）
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
 
-        if df.empty:
-            st.error("❌ 没获取到数据")
-        else:
+    df.columns = [str(col).strip() for col in df.columns]
 
-            # ========= 📈 K线图 =========
-            fig = go.Figure()
+    if df.empty:
+        st.error("❌ 获取数据失败（检查代码或网络）")
+        st.stop()
 
-            fig.add_trace(go.Candlestick(
-                x=df.index,
-                open=df['Open'],
-                high=df['High'],
-                low=df['Low'],
-                close=df['Close'],
-                name='K线'
-            ))
+    # ===== 检查字段 =====
+    required_cols = ["Open", "High", "Low", "Close"]
+    if not all(col in df.columns for col in required_cols):
+        st.error(f"❌ 数据字段缺失: {df.columns}")
+        st.stop()
 
-            fig.update_layout(
-                height=400,
-                template="plotly_dark",
-                xaxis_rangeslider_visible=False
-            )
+    # ===== K线图（核心修复）=====
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index,
+        open=df["Open"].astype(float),
+        high=df["High"].astype(float),
+        low=df["Low"].astype(float),
+        close=df["Close"].astype(float)
+    )])
 
-            st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        height=400,
+        margin=dict(l=10, r=10, t=20, b=20),
+        xaxis_rangeslider_visible=False,
+        template="plotly_dark"
+    )
 
-            # ========= AI分析 =========
-            prompt = f"""
-你是专业股票分析师，请分析股票 {ticker}：
+    st.plotly_chart(fig, use_container_width=True)
 
+    # ===== AI 分析 =====
+    with st.spinner("AI分析中..."):
+
+        prompt = f"""
+你是专业股票分析师，请分析股票 {ticker}
+
+最近数据：
 {df.tail().to_string()}
 
-请给出：
+用户风险偏好：{risk}
+
+请输出：
 1. 趋势判断
-2. 是否值得买入
-3. 风险提示（结合{risk}风险偏好）
+2. 买卖建议
+3. 风险提示
+
+用简洁中文表达
 """
 
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": prompt}]
-            )
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-            result = response.choices[0].message.content
+        result = response.choices[0].message.content
 
-            # ========= 结果展示 =========
-            st.success("✅ 分析完成")
+    # ===== 输出 =====
+    st.success("分析完成")
 
-            st.subheader("📊 AI分析结果")
-            st.write(result)
+    st.subheader("📊 AI分析结果")
+    st.write(result)
