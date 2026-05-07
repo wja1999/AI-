@@ -1,143 +1,135 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
 from openai import OpenAI
+import plotly.graph_objects as go
 import pandas as pd
 
-st.set_page_config(layout="wide")
-
-# ===== API =====
+# 🔐 填你的 key（这里改）
 client = OpenAI(
     api_key="sk-34bde63deba4488c939677b2a93fbb01",
     base_url="https://api.deepseek.com"
 )
 
-# ===== UI =====
-st.title("📊 AI股票分析平台")
-st.caption("趋势判断 · 风险提示 · 投资建议")
+st.set_page_config(page_title="AI股票分析", layout="centered")
 
-left, right = st.columns([1, 2])
+st.title("📈 AI 股票分析")
+st.caption("趋势判断 · 风险提示 · 买卖建议")
 
-with left:
-    st.subheader("⚙️ 参数设置")
+# ======================
+# 🎯 输入区
+# ======================
+ticker = st.text_input("股票代码", "AAPL")
+period = st.selectbox("周期", ["1mo", "3mo", "6mo", "1y"])
+risk = st.selectbox("风险偏好", ["低", "中", "高"], index=1)
 
-    ticker = st.text_input("股票代码", "000066.SZ")
-    period = st.selectbox("周期", ["5d", "1mo", "3mo"])
-    risk = st.selectbox("风险偏好", ["低", "中", "高"])
+if st.button("🚀 开始分析"):
 
-    run = st.button("🚀 开始分析", use_container_width=True)
+    # ======================
+    # 📥 获取数据
+    # ======================
+    data = yf.download(ticker, period=period, progress=False)
 
-with right:
-    if run:
+    if data is None or data.empty:
+        st.error("❌ 没拿到数据，建议先试 AAPL")
+        st.stop()
 
-        data = yf.download(ticker, period=period)
+    # ======================
+    # 🧹 修复列结构
+    # ======================
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
 
-        if data is None or data.empty:
-            st.error("❌ 没有获取到数据")
-        else:
-            # ===== 彻底兜底处理 =====
-            data = data.copy()
+    data.rename(columns={
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Close": "close",
+        "Adj Close": "adj_close",
+        "Volume": "volume"
+    }, inplace=True)
 
-            # reset index
-            if not isinstance(data.index, pd.RangeIndex):
-                data = data.reset_index()
+    data = data[["open", "high", "low", "close"]].dropna()
 
-            # 展平列名（关键）
-            data.columns = [
-                "_".join(col) if isinstance(col, tuple) else str(col)
-                for col in data.columns
-            ]
+    if data.empty:
+        st.error("❌ 数据为空")
+        st.stop()
 
-            # 全部小写
-            data.columns = [col.lower() for col in data.columns]
+    # ======================
+    # 🎯 判断市场（颜色）
+    # ======================
+    if ticker.endswith(".SZ") or ticker.endswith(".SS"):
+        # A股
+        up_color = "#FF3B30"     # 红
+        down_color = "#00C853"   # 绿
+    else:
+        # 美股
+        up_color = "#00C853"     # 绿
+        down_color = "#FF3B30"   # 红
 
-            # ===== 字段兼容 =====
-            def pick(col_list):
-                for c in col_list:
-                    if c in data.columns:
-                        return data[c]
-                return None
+    # ======================
+    # 🧱 构建绘图数据（去掉时间空隙）
+    # ======================
+    df = data.reset_index()
+    df["x"] = range(len(df))
 
-            open_col = pick(["open"])
-            high_col = pick(["high"])
-            low_col = pick(["low"])
-            close_col = pick(["close", "adj close"])
-            volume_col = pick(["volume"])
+    # ======================
+    # 📈 K线图
+    # ======================
+    fig = go.Figure(data=[go.Candlestick(
+        x=df["x"],
+        open=df["open"],
+        high=df["high"],
+        low=df["low"],
+        close=df["close"],
+        increasing_line_color=up_color,
+        increasing_fillcolor=up_color,
+        decreasing_line_color=down_color,
+        decreasing_fillcolor=down_color
+    )])
 
-            date_col = pick(["date", "datetime"])
+    fig.update_layout(
+        template="plotly_dark",
+        height=420,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(
+            tickmode='array',
+            tickvals=df["x"][::max(1, len(df)//6)],
+            ticktext=df.iloc[:, 0].dt.strftime('%m-%d')[::max(1, len(df)//6)]
+        ),
+        yaxis=dict(title="价格")
+    )
 
-            if date_col is None:
-                date_col = data.index
+    st.plotly_chart(fig, use_container_width=True)
+    st.success("✅ K线加载完成")
 
-            if close_col is None:
-                st.error("❌ 数据缺少收盘价，无法绘制K线")
-                st.stop()
+    # ======================
+    # 🤖 AI分析
+    # ======================
+    prompt = f"""
+你是专业股票分析师，请分析股票 {ticker}：
 
-            # ===== 判断市场 =====
-            is_cn = ".SZ" in ticker or ".SH" in ticker
-
-            # ===== K线 =====
-            fig = go.Figure()
-
-            fig.add_trace(go.Candlestick(
-                x=date_col,
-                open=open_col if open_col is not None else close_col,
-                high=high_col if high_col is not None else close_col,
-                low=low_col if low_col is not None else close_col,
-                close=close_col,
-                increasing_line_color="red" if is_cn else "green",
-                decreasing_line_color="green" if is_cn else "red"
-            ))
-
-            fig.update_layout(
-                height=420,
-                margin=dict(l=10, r=10, t=20, b=10),
-                xaxis_rangeslider_visible=False
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            # ===== KPI（完全兜底）=====
-            latest = data.iloc[-1]
-
-            def safe_val(col):
-                return float(latest[col]) if col in latest and pd.notna(latest[col]) else 0
-
-            open_p = safe_val("open")
-            close_p = safe_val("close") if "close" in data.columns else safe_val("adj close")
-            volume = safe_val("volume")
-
-            change = close_p - open_p
-            pct = (change / open_p * 100) if open_p != 0 else 0
-
-            c1, c2, c3, c4 = st.columns(4)
-
-            c1.metric("最新价", f"{close_p:.2f}")
-            c2.metric("涨跌", f"{change:.2f}")
-            c3.metric("涨幅", f"{pct:.2f}%")
-            c4.metric("成交量", f"{volume/1e6:.2f}M")
-
-            # ===== AI =====
-            prompt = f"""
-请用中文分析股票 {ticker}：
-
+最近行情：
 {data.tail().to_string()}
 
-输出：
-1. 趋势（简短）
-2. 建议（买/观望/卖）
-3. 风险
+风险偏好：{risk}
+
+请给出：
+1. 趋势判断
+2. 买卖建议
+3. 风险提示
 """
 
-            try:
-                response = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": prompt}]
-                )
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-                st.markdown("---")
-                st.subheader("🤖 AI分析")
-                st.write(response.choices[0].message.content)
+        result = response.choices[0].message.content
 
-            except Exception as e:
-                st.warning("⚠️ AI分析失败（可能是key或网络问题）")
+        st.subheader("📊 AI分析结果")
+        st.markdown(result)
+
+    except Exception as e:
+        st.error("❌ AI分析失败")
+        st.text(e)
