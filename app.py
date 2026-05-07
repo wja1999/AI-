@@ -4,136 +4,188 @@ from openai import OpenAI
 import plotly.graph_objects as go
 import pandas as pd
 
-# 🔐 填你的 key
+# 🔐 key
 client = OpenAI(
     api_key="sk-34bde63deba4488c939677b2a93fbb01",
     base_url="https://api.deepseek.com"
 )
 
-# 页面设置（关键：wide）
-st.set_page_config(page_title="AI股票分析", layout="wide")
-
-st.title("📈 AI 股票分析")
-st.caption("趋势判断 · 风险提示 · 买卖建议")
+# 页面
+st.set_page_config(layout="wide")
 
 # ======================
-# 🎯 左右布局
+# 🎨 UI 样式（重点）
 # ======================
-left, right = st.columns([1, 2])
+st.markdown("""
+<style>
+body {
+    background: linear-gradient(135deg,#f5f7fa,#e4ecf7);
+}
 
-with left:
+.block-container {
+    padding-top: 2rem;
+}
+
+/* 标题 */
+h1 {
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+/* 卡片（磨砂玻璃） */
+.glass {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(14px);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+}
+
+/* 输入框 */
+.stTextInput>div>div>input {
+    border-radius: 10px;
+}
+
+/* 按钮 */
+.stButton>button {
+    border-radius: 12px;
+    height: 44px;
+    width: 100%;
+    font-weight: 600;
+}
+
+/* 标题区 */
+.title-box {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+/* 子标题 */
+.sub {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ======================
+# 🧠 标题
+# ======================
+st.markdown('<div class="title-box">📈 AI 股票分析平台</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub">趋势判断 · 风险提示 · 投资建议</div>', unsafe_allow_html=True)
+
+# ======================
+# 🧱 布局
+# ======================
+col1, col2 = st.columns([1, 3])
+
+# ======================
+# 左侧：参数卡片
+# ======================
+with col1:
+    st.markdown('<div class="glass">', unsafe_allow_html=True)
+
     st.subheader("⚙️ 参数设置")
 
-    ticker = st.text_input("股票代码", "AAPL")
+    ticker = st.text_input("股票代码", "000066.SZ")
     period = st.selectbox("周期", ["1mo", "3mo", "6mo", "1y"])
-    risk = st.selectbox("风险偏好", ["低", "中", "高"], index=1)
+    risk = st.selectbox("风险偏好", ["低", "中", "高"])
 
     run = st.button("🚀 开始分析")
 
-with right:
-    st.subheader("📊 分析结果区域")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================
-# 🚀 执行逻辑
+# 右侧：主内容
 # ======================
-if run:
+with col2:
 
-    data = yf.download(ticker, period=period, progress=False)
+    st.markdown('<div class="glass">', unsafe_allow_html=True)
 
-    if data is None or data.empty:
-        right.error("❌ 没拿到数据，建议先试 AAPL")
-        st.stop()
+    st.subheader("📊 市场走势")
 
-    # 修复列结构
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(0)
+    if run:
 
-    data.rename(columns={
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Close": "close",
-        "Adj Close": "adj_close",
-        "Volume": "volume"
-    }, inplace=True)
+        data = yf.download(ticker, period=period, progress=False)
 
-    data = data[["open", "high", "low", "close"]].dropna()
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
 
-    if data.empty:
-        right.error("❌ 数据为空")
-        st.stop()
+        data.rename(columns={
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close"
+        }, inplace=True)
 
-    # ======================
-    # 🎯 判断市场颜色
-    # ======================
-    if ticker.endswith(".SZ") or ticker.endswith(".SS"):
-        up_color = "#FF3B30"     # A股涨红
-        down_color = "#00C853"
-    else:
-        up_color = "#00C853"     # 美股涨绿
-        down_color = "#FF3B30"
+        data = data[["open", "high", "low", "close"]].dropna()
 
-    # ======================
-    # 📈 K线
-    # ======================
-    df = data.reset_index()
-    df["x"] = range(len(df))
+        df = data.reset_index()
+        df["x"] = range(len(df))
 
-    fig = go.Figure(data=[go.Candlestick(
-        x=df["x"],
-        open=df["open"],
-        high=df["high"],
-        low=df["low"],
-        close=df["close"],
-        increasing_line_color=up_color,
-        increasing_fillcolor=up_color,
-        decreasing_line_color=down_color,
-        decreasing_fillcolor=down_color
-    )])
+        # 🎯 A股 / 美股颜色
+        if ticker.endswith(".SZ") or ticker.endswith(".SS"):
+            up = "#ff3b30"
+            down = "#00c853"
+        else:
+            up = "#00c853"
+            down = "#ff3b30"
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=500,
-        margin=dict(l=10, r=10, t=10, b=10),
-        xaxis=dict(
-            tickmode='array',
-            tickvals=df["x"][::max(1, len(df)//6)],
-            ticktext=df.iloc[:, 0].dt.strftime('%m-%d')[::max(1, len(df)//6)]
-        ),
-        yaxis=dict(title="价格")
-    )
+        fig = go.Figure(data=[go.Candlestick(
+            x=df["x"],
+            open=df["open"],
+            high=df["high"],
+            low=df["low"],
+            close=df["close"],
+            increasing_fillcolor=up,
+            increasing_line_color=up,
+            decreasing_fillcolor=down,
+            decreasing_line_color=down
+        )])
 
-    right.plotly_chart(fig, use_container_width=True)
-    right.success("✅ K线加载完成")
+        fig.update_layout(
+            template="plotly_white",
+            height=420,
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis=dict(
+                tickmode='array',
+                tickvals=df["x"][::max(1,len(df)//6)],
+                ticktext=df.iloc[:,0].dt.strftime('%m-%d')[::max(1,len(df)//6)]
+            )
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ======================
-    # 🤖 AI分析
+    # 🤖 AI 分析卡片
     # ======================
-    prompt = f"""
-你是专业股票分析师，请分析股票 {ticker}：
+    if run:
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
 
-最近行情：
+        st.subheader("🤖 AI 投资分析")
+
+        prompt = f"""
+分析股票 {ticker}：
+
 {data.tail().to_string()}
 
 风险偏好：{risk}
 
-请给出：
-1. 趋势判断
+输出：
+1. 趋势
 2. 买卖建议
-3. 风险提示
+3. 风险
 """
 
-    try:
-        response = client.chat.completions.create(
+        res = client.chat.completions.create(
             model="deepseek-chat",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role":"user","content":prompt}]
         )
 
-        result = response.choices[0].message.content
+        st.write(res.choices[0].message.content)
 
-        right.subheader("🤖 AI分析")
-        right.markdown(result)
-
-    except Exception as e:
-        right.error("❌ AI分析失败")
-        right.text(e)
+        st.markdown('</div>', unsafe_allow_html=True)
