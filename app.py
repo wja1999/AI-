@@ -10,17 +10,24 @@ import re
 import html
 
 # ======================
-# 🔐 DeepSeek API 配置
+# 🔐 DeepSeek API Key
 # ======================
-# 只需要改这里：把下面这一行替换成你的 DeepSeek API Key
+# 本地运行：直接把你的 DeepSeek key 粘贴到这里
+# Streamlit Cloud：也可以在 Secrets 里配置 DEEPSEEK_API_KEY
 DEEPSEEK_API_KEY = "sk-34bde63deba4488c939677b2a93fbb01"
+
+try:
+    if DEEPSEEK_API_KEY == "在这里粘贴你的DeepSeek key":
+        DEEPSEEK_API_KEY = st.secrets.get("DEEPSEEK_API_KEY", "")
+except Exception:
+    pass
 
 client = OpenAI(
     api_key=DEEPSEEK_API_KEY,
     base_url="https://api.deepseek.com"
 )
 
-st.set_page_config(page_title="AI股票分析", layout="wide")
+st.set_page_config(page_title="AI股票分析平台", layout="wide")
 
 # ======================
 # UI 样式
@@ -30,40 +37,156 @@ st.markdown(
 <style>
 .stApp {
     background:
-        radial-gradient(circle at 10% 10%, rgba(66, 153, 225, 0.16), transparent 30%),
-        radial-gradient(circle at 90% 15%, rgba(255, 99, 132, 0.12), transparent 28%),
-        linear-gradient(135deg, #f7f9fc 0%, #eef3f8 48%, #f9fbff 100%);
-    color: #172033;
+        radial-gradient(circle at 6% 8%, rgba(37, 99, 235, 0.12), transparent 30%),
+        radial-gradient(circle at 92% 10%, rgba(14, 165, 233, 0.12), transparent 32%),
+        linear-gradient(135deg, #f6f8fc 0%, #edf3f8 45%, #ffffff 100%);
+    color: #111827;
 }
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 1.6rem;
     padding-bottom: 2rem;
-    max-width: 1500px;
+    max-width: 1540px;
 }
 
 h1, h2, h3 {
-    color: #111827;
+    color: #0f172a;
 }
 
 [data-testid="stMarkdownContainer"] p {
     color: #334155;
 }
 
+.main-title {
+    font-size: 34px;
+    font-weight: 900;
+    color: #0f172a;
+    margin-bottom: 4px;
+}
+
+.sub-title {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
 .glass-card {
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.85);
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    background: rgba(255,255,255,0.76);
+    border: 1px solid rgba(255,255,255,0.92);
+    box-shadow: 0 18px 45px rgba(15,23,42,0.08);
     backdrop-filter: blur(18px);
     border-radius: 22px;
     padding: 20px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
+}
+
+.score-card {
+    background:
+        linear-gradient(135deg, rgba(255,255,255,0.96), rgba(239,246,255,0.88));
+    border: 1px solid rgba(191,219,254,0.9);
+    border-radius: 24px;
+    padding: 22px;
+    box-shadow: 0 18px 45px rgba(37,99,235,0.10);
+    margin-bottom: 16px;
+}
+
+.score-number {
+    font-size: 58px;
+    font-weight: 950;
+    line-height: 1;
+}
+
+.score-label {
+    font-size: 22px;
+    font-weight: 850;
+    color: #0f172a;
+}
+
+.score-desc {
+    font-size: 15px;
+    color: #475569;
+    line-height: 1.7;
+    margin-top: 8px;
+}
+
+.score-bar-bg {
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 16px;
+}
+
+.score-bar-fill {
+    height: 12px;
+    border-radius: 99px;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.kpi-box {
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(226,232,240,0.95);
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.kpi-label {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+
+.kpi-value {
+    font-size: 18px;
+    font-weight: 850;
+    color: #0f172a;
+}
+
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 14px 0 18px 0;
+}
+
+.quick-card {
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(226,232,240,0.95);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 12px 30px rgba(15,23,42,0.06);
+    min-height: 118px;
+}
+
+.quick-label {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+
+.quick-value {
+    font-size: 21px;
+    font-weight: 900;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.quick-desc {
+    font-size: 14px;
+    line-height: 1.65;
+    color: #475569;
 }
 
 .ai-card {
-    background: rgba(255, 255, 255, 0.78);
-    border: 1px solid rgba(226, 232, 240, 0.95);
-    box-shadow: 0 14px 38px rgba(15, 23, 42, 0.08);
+    background: rgba(255,255,255,0.84);
+    border: 1px solid rgba(226,232,240,0.95);
+    box-shadow: 0 14px 36px rgba(15,23,42,0.07);
     border-radius: 22px;
     padding: 20px 22px;
     margin: 12px 0;
@@ -71,12 +194,9 @@ h1, h2, h3 {
 
 .ai-card-title {
     font-size: 20px;
-    font-weight: 800;
+    font-weight: 900;
     color: #0f172a;
     margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
 .ai-card-body {
@@ -87,59 +207,26 @@ h1, h2, h3 {
 
 .ai-bullet {
     margin: 7px 0;
-    padding-left: 2px;
 }
 
-.summary-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-    margin: 14px 0 18px 0;
+.news-box {
+    background: rgba(239,246,255,0.72);
+    border: 1px solid rgba(191,219,254,0.8);
+    border-radius: 18px;
+    padding: 16px 18px;
+    margin: 10px 0;
 }
 
-.summary-card {
-    background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(248,250,252,0.78));
-    border: 1px solid rgba(226,232,240,0.95);
-    border-radius: 20px;
-    padding: 18px;
-    min-height: 118px;
-    box-shadow: 0 12px 30px rgba(15,23,42,0.07);
-}
-
-.summary-label {
-    font-size: 13px;
-    color: #64748b;
-    margin-bottom: 10px;
-}
-
-.summary-value {
-    font-size: 22px;
+.news-title {
     font-weight: 850;
-    color: #0f172a;
+    color: #1e3a8a;
     margin-bottom: 8px;
-}
-
-.summary-desc {
-    font-size: 14px;
-    color: #475569;
-    line-height: 1.6;
-}
-
-.score-big {
-    font-size: 54px;
-    font-weight: 900;
-    line-height: 1;
-}
-
-.score-sub {
-    font-size: 18px;
-    color: #64748b;
 }
 
 .stButton > button {
     height: 48px;
     border-radius: 14px;
-    font-weight: 800;
+    font-weight: 850;
     background: linear-gradient(135deg, #2563eb, #06b6d4);
     color: white;
     border: none;
@@ -150,7 +237,10 @@ h1, h2, h3 {
 }
 
 @media (max-width: 900px) {
-    .summary-grid {
+    .quick-grid {
+        grid-template-columns: 1fr;
+    }
+    .kpi-grid {
         grid-template-columns: 1fr;
     }
 }
@@ -158,9 +248,6 @@ h1, h2, h3 {
     """,
     unsafe_allow_html=True
 )
-
-st.title("📈 AI 股票分析平台")
-st.caption("短线技术分析 · 消息面辅助 · 政策面参考 · AI科学评分 · 操作计划")
 
 # ======================
 # 工具函数
@@ -230,8 +317,8 @@ def fetch_stock_news(stock_name, ticker_input, max_items=8):
     search_queries = [
         f"{query_base} 股票 最新消息",
         f"{query_base} 财经 新闻 利好 利空",
-        f"{query_base} 研报 股东 减持 增持 回购",
-        f"{query_base} 公告 业绩 订单 合作"
+        f"{query_base} 业绩 公告 订单 合作",
+        f"{query_base} 研报 股东 减持 增持 回购"
     ]
 
     all_news = []
@@ -249,7 +336,7 @@ def fetch_stock_news(stock_name, ticker_input, max_items=8):
     unique_news = []
 
     for item in all_news:
-        title_key = item["title"][:40]
+        title_key = item["title"][:48]
 
         if title_key not in seen:
             seen.add(title_key)
@@ -261,11 +348,13 @@ def fetch_stock_news(stock_name, ticker_input, max_items=8):
     return unique_news
 
 
-def fetch_policy_news(max_items=5):
+def fetch_market_background(stock_name, max_items=4):
+    query_base = stock_name.strip() if stock_name.strip() else "A股"
+
     queries = [
-        "A股 政策 证监会 央行 最新",
-        "资本市场 政策 利好 A股",
-        "中国 股市 政策 面 资金面"
+        f"{query_base} 行业 政策 最新",
+        f"{query_base} 行业 监管 政策",
+        "A股 证监会 央行 政策 资本市场"
     ]
 
     all_news = []
@@ -283,7 +372,7 @@ def fetch_policy_news(max_items=5):
     unique_news = []
 
     for item in all_news:
-        title_key = item["title"][:40]
+        title_key = item["title"][:48]
 
         if title_key not in seen:
             seen.add(title_key)
@@ -307,6 +396,7 @@ def calc_indicators(data):
 
     ema12 = df["close"].ewm(span=12, adjust=False).mean()
     ema26 = df["close"].ewm(span=26, adjust=False).mean()
+
     df["macd_dif"] = ema12 - ema26
     df["macd_dea"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
     df["macd_hist"] = (df["macd_dif"] - df["macd_dea"]) * 2
@@ -314,6 +404,7 @@ def calc_indicators(data):
     low_min = df["low"].rolling(9).min()
     high_max = df["high"].rolling(9).max()
     rsv = (df["close"] - low_min) / (high_max - low_min) * 100
+
     df["kdj_k"] = rsv.ewm(com=2).mean()
     df["kdj_d"] = df["kdj_k"].ewm(com=2).mean()
     df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
@@ -342,48 +433,53 @@ def safe_float(value, default=0.0):
         return default
 
 
-def score_news_titles(stock_news, policy_news):
+def score_news_titles(stock_news):
     positive_words = [
         "利好", "增长", "突破", "中标", "签约", "回购", "增持", "盈利",
         "上调", "订单", "合作", "国产替代", "政策支持", "资金流入",
-        "创新高", "扩产", "业绩预增", "超预期"
+        "创新高", "扩产", "业绩预增", "超预期", "涨停", "龙头"
     ]
 
     negative_words = [
         "利空", "下滑", "亏损", "减持", "处罚", "调查", "风险",
         "终止", "违约", "暴跌", "业绩预减", "低于预期", "问询",
-        "诉讼", "退市", "资金流出"
+        "诉讼", "退市", "资金流出", "监管函"
     ]
 
-    text = " ".join([n["title"] for n in stock_news + policy_news])
+    text = " ".join([n["title"] for n in stock_news])
 
     pos_count = sum(1 for w in positive_words if w in text)
     neg_count = sum(1 for w in negative_words if w in text)
 
-    base = 8
-    score = base + pos_count * 2 - neg_count * 3
-    score = max(0, min(15, score))
-
     if not stock_news:
-        score = min(score, 8)
+        score = 6
+    else:
+        score = 8 + pos_count * 2 - neg_count * 3
+
+    score = max(0, min(15, score))
 
     return score, pos_count, neg_count
 
 
-def calc_ai_score(data, latest, prev, stock_news, policy_news):
+def calc_ai_score(data, latest, prev, stock_news):
     close = safe_float(latest["close"])
     prev_close = safe_float(prev["close"], close)
+
     ma5 = safe_float(latest["ma5"])
     ma10 = safe_float(latest["ma10"])
     ma20 = safe_float(latest["ma20"])
     ma60 = safe_float(latest["ma60"])
+
     macd_dif = safe_float(latest["macd_dif"])
     macd_dea = safe_float(latest["macd_dea"])
     macd_hist = safe_float(latest["macd_hist"])
+
     kdj_j = safe_float(latest["kdj_j"])
+
     volume = safe_float(latest["volume"])
     vol_ma5 = safe_float(latest["vol_ma5"])
     vol_ma20 = safe_float(latest["vol_ma20"])
+
     pct_chg = ((close - prev_close) / prev_close * 100) if prev_close else 0
 
     trend_score = 0
@@ -444,7 +540,8 @@ def calc_ai_score(data, latest, prev, stock_news, policy_news):
     recent_10 = data.tail(10)
 
     if len(recent_5) >= 5:
-        rise_5 = (safe_float(recent_5["close"].iloc[-1]) / safe_float(recent_5["close"].iloc[0]) - 1) * 100
+        first_close_5 = safe_float(recent_5["close"].iloc[0], close)
+        rise_5 = (close / first_close_5 - 1) * 100 if first_close_5 else 0
     else:
         rise_5 = 0
 
@@ -472,14 +569,14 @@ def calc_ai_score(data, latest, prev, stock_news, policy_news):
 
     risk_score = max(0, min(15, risk_score))
 
-    news_score, pos_count, neg_count = score_news_titles(stock_news, policy_news)
+    news_score, pos_count, neg_count = score_news_titles(stock_news)
 
     total_score = trend_score + momentum_score + volume_score + risk_score + news_score
     total_score = int(max(0, min(100, round(total_score))))
 
     if total_score >= 80:
         level = "强势区"
-        action = "可重点关注，适合趋势持有或回踩低吸，但不适合连续大涨后盲目追高。"
+        action = "可重点跟踪，适合趋势持有或回踩低吸，但连续急涨后不适合盲目追高。"
         user_action = "偏进攻"
     elif total_score >= 65:
         level = "偏强区"
@@ -503,7 +600,7 @@ def calc_ai_score(data, latest, prev, stock_news, policy_news):
         "动能指标": momentum_score,
         "成交量资金": volume_score,
         "风险状态": risk_score,
-        "消息政策": news_score,
+        "消息面": news_score,
         "利好词命中": pos_count,
         "利空词命中": neg_count,
         "总分": total_score,
@@ -557,7 +654,7 @@ def markdown_to_html(text):
 
 
 def split_ai_sections(text):
-    section_pattern = r"(?m)^(一、[^\n]+|二、[^\n]+|三、[^\n]+|四、[^\n]+|五、[^\n]+|六、[^\n]+|七、[^\n]+)\s*$"
+    section_pattern = r"(?m)^(一、[^\n]+|二、[^\n]+|三、[^\n]+|四、[^\n]+|五、[^\n]+|六、[^\n]+)\s*$"
     matches = list(re.finditer(section_pattern, text))
 
     if not matches:
@@ -575,6 +672,13 @@ def split_ai_sections(text):
     return sections
 
 
+def find_section(sections, keyword):
+    for title, body in sections.items():
+        if keyword in title:
+            return body
+    return ""
+
+
 def render_ai_card(title, body, icon="🧩"):
     st.markdown(
         f"""
@@ -587,89 +691,123 @@ def render_ai_card(title, body, icon="🧩"):
     )
 
 
-def render_ai_visual_result(result, score_detail):
-    sections = split_ai_sections(result)
+def render_score_panel(score_detail):
     score = score_detail["总分"]
     color = score_color(score)
 
-    if score >= 80:
-        risk_text = "趋势较强，但要防止高位加速后的回撤。"
-    elif score >= 65:
-        risk_text = "结构偏强，但需要等待量价继续确认。"
-    elif score >= 50:
-        risk_text = "趋势不够极致，适合边观察边验证。"
-    elif score >= 35:
-        risk_text = "短线偏弱，贸然追涨的性价比较低。"
-    else:
-        risk_text = "风险较高，优先保护本金。"
-
-    st.subheader("🧭 小白版AI解读")
-
     st.markdown(
         f"""
-        <div class="summary-grid">
-            <div class="summary-card">
-                <div class="summary-label">当前状态</div>
-                <div class="summary-value">{html.escape(score_detail["评级"])}</div>
-                <div class="summary-desc">AI综合分数为 <b style="color:{color};">{score}</b> 分，代表当前交易环境。</div>
+        <div class="score-card">
+            <div style="display:flex; justify-content:space-between; gap:20px; align-items:flex-start;">
+                <div>
+                    <div style="font-size:14px;color:#64748b;margin-bottom:8px;">AI综合评分</div>
+                    <div class="score-number" style="color:{color};">{score}<span style="font-size:22px;color:#64748b;"> / 100</span></div>
+                </div>
+                <div style="flex:1;">
+                    <div class="score-label">{html.escape(score_detail["评级"])} · {html.escape(score_detail["用户动作"])}</div>
+                    <div class="score-desc">{html.escape(score_detail["操作倾向"])}</div>
+                    <div class="score-bar-bg">
+                        <div class="score-bar-fill" style="width:{score}%; background:{color};"></div>
+                    </div>
+                </div>
             </div>
-            <div class="summary-card">
-                <div class="summary-label">适合动作</div>
-                <div class="summary-value">{html.escape(score_detail["用户动作"])}</div>
-                <div class="summary-desc">{html.escape(score_detail["操作倾向"])}</div>
+
+            <div class="kpi-grid">
+                <div class="kpi-box">
+                    <div class="kpi-label">趋势结构</div>
+                    <div class="kpi-value">{score_detail["趋势结构"]}/30</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-label">动能指标</div>
+                    <div class="kpi-value">{score_detail["动能指标"]}/20</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-label">成交量资金</div>
+                    <div class="kpi-value">{score_detail["成交量资金"]}/20</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-label">风险状态</div>
+                    <div class="kpi-value">{score_detail["风险状态"]}/15</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-label">消息面</div>
+                    <div class="kpi-value">{score_detail["消息面"]}/15</div>
+                </div>
             </div>
-            <div class="summary-card">
-                <div class="summary-label">主要风险</div>
-                <div class="summary-value">风险提醒</div>
-                <div class="summary-desc">{html.escape(risk_text)}</div>
+
+            <div class="score-desc">
+                近5日涨幅：{score_detail["近5日涨幅"]:.2f}%；
+                近10日波动率：{score_detail["近10日波动率"]:.2f}；
+                消息面利好词命中：{score_detail["利好词命中"]} 个；
+                利空词命中：{score_detail["利空词命中"]} 个。
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "评分解读", "短线趋势", "技术面", "资金面", "消息政策", "综合结论", "观察计划"
-    ])
 
-    section_map = {
-        "评分解读": "一、AI评分解读",
-        "短线趋势": "二、短线趋势判断",
-        "技术面": "三、技术面分析",
-        "资金面": "四、资金面分析",
-        "消息政策": "五、消息面与政策面分析",
-        "综合结论": "六、综合结论",
-        "观察计划": "七、AI观察计划"
-    }
+def render_ai_visual_result(result, score_detail):
+    sections = split_ai_sections(result)
 
-    with tab1:
-        render_ai_card("AI评分解读", sections.get(section_map["评分解读"], "暂无评分解读内容。"), "🧠")
+    conclusion = find_section(sections, "结论先看")
+    trend = find_section(sections, "短线趋势")
+    tech = find_section(sections, "技术面")
+    funds = find_section(sections, "资金面")
+    news = find_section(sections, "消息面")
+    plan = find_section(sections, "观察计划")
 
-    with tab2:
-        render_ai_card("短线趋势判断", sections.get(section_map["短线趋势"], "暂无短线趋势内容。"), "📈")
+    st.subheader("🧭 关键信息先看")
 
-    with tab3:
-        render_ai_card("技术面分析", sections.get(section_map["技术面"], "暂无技术面内容。"), "🛠️")
+    render_ai_card("结论先看", conclusion if conclusion else result, "✅")
 
-    with tab4:
-        render_ai_card("资金面分析", sections.get(section_map["资金面"], "暂无资金面内容。"), "💰")
+    st.markdown(
+        f"""
+        <div class="quick-grid">
+            <div class="quick-card">
+                <div class="quick-label">当前AI判断</div>
+                <div class="quick-value">{html.escape(score_detail["评级"])}</div>
+                <div class="quick-desc">当前综合分数为 {score_detail["总分"]} 分，核心动作是：{html.escape(score_detail["用户动作"])}。</div>
+            </div>
+            <div class="quick-card">
+                <div class="quick-label">适合操作</div>
+                <div class="quick-value">{html.escape(score_detail["用户动作"])}</div>
+                <div class="quick-desc">{html.escape(score_detail["操作倾向"])}</div>
+            </div>
+            <div class="quick-card">
+                <div class="quick-label">主要风险</div>
+                <div class="quick-value">防追高</div>
+                <div class="quick-desc">如果短期涨幅过大、放量滞涨或跌破短期均线，应降低仓位或转为观察。</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    with tab5:
-        render_ai_card("消息面与政策面", sections.get(section_map["消息政策"], "暂无消息政策内容。"), "📰")
+    st.subheader("📌 模块化AI解读")
 
-    with tab6:
-        render_ai_card("综合结论", sections.get(section_map["综合结论"], "暂无综合结论内容。"), "✅")
+    c1, c2 = st.columns(2, gap="large")
 
-    with tab7:
-        render_ai_card("AI观察计划", sections.get(section_map["观察计划"], "暂无观察计划内容。"), "🧭")
+    with c1:
+        render_ai_card("短线趋势", trend, "📈")
+        render_ai_card("资金面", funds, "💰")
 
-    with st.expander("查看原始AI完整文本"):
+    with c2:
+        render_ai_card("技术面", tech, "🛠️")
+        render_ai_card("消息面", news, "📰")
+
+    render_ai_card("AI观察计划", plan, "🧭")
+
+    with st.expander("查看AI原始完整文本"):
         st.markdown(result)
 
 
 # ======================
-# 页面布局
+# 页面标题
 # ======================
+st.markdown('<div class="main-title">📊 AI股票分析平台</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">趋势判断 · 消息面辅助 · AI科学评分 · 小白可读操作计划</div>', unsafe_allow_html=True)
+
 left, right = st.columns([0.34, 0.66], gap="large")
 
 with left:
@@ -677,27 +815,36 @@ with left:
     st.subheader("⚙️ 参数设置")
 
     ticker_input = st.text_input("股票代码", "000066")
-    stock_name = st.text_input("股票名称（建议填写中文名，用于抓取新闻）", "中国长城")
+    stock_name = st.text_input("股票名称，建议填写中文名", "中国长城")
     period = st.selectbox("周期", ["1mo", "3mo", "6mo", "1y"])
     risk = st.selectbox("风险偏好", ["低", "中", "高"], index=1)
 
     start = st.button("🚀 开始分析", use_container_width=True)
+
+    st.caption("A股可输入：000066、000066.SZ、600519、600519.SS。")
     st.markdown('</div>', unsafe_allow_html=True)
 
 with right:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.subheader("📊 分析结果区域")
-    placeholder = st.empty()
+    st.subheader("📈 分析结果")
+    st.caption("点击开始分析后，将展示K线图、AI评分、消息面和操作计划。")
     st.markdown('</div>', unsafe_allow_html=True)
 
+# ======================
+# 主流程
+# ======================
 if start:
+
+    if not DEEPSEEK_API_KEY:
+        st.error("❌ 没有配置 DeepSeek API Key。请在代码顶部 DEEPSEEK_API_KEY 里填写，或在 Streamlit Secrets 配置 DEEPSEEK_API_KEY。")
+        st.stop()
 
     ticker = normalize_ticker(ticker_input)
 
-    data = yf.download(ticker, period=period, progress=False)
+    data = yf.download(ticker, period=period, progress=False, auto_adjust=False)
 
     if data is None or data.empty:
-        st.error("❌ 没拿到数据。沪市示例：600519 或 600519.SS；深市示例：000001 或 000001.SZ。")
+        st.error("❌ 没拿到行情数据。沪市示例：600519 或 600519.SS；深市示例：000001 或 000001.SZ。")
         st.stop()
 
     if isinstance(data.columns, pd.MultiIndex):
@@ -713,14 +860,15 @@ if start:
     }, inplace=True)
 
     need_cols = ["open", "high", "low", "close", "volume"]
+
     if not all(col in data.columns for col in need_cols):
-        st.error(f"❌ 数据字段异常：{list(data.columns)}")
+        st.error(f"❌ 行情字段异常：{list(data.columns)}")
         st.stop()
 
     data = data[need_cols].dropna()
 
     if data.empty:
-        st.error("❌ 数据为空")
+        st.error("❌ 数据为空，无法分析。")
         st.stop()
 
     data = calc_indicators(data)
@@ -728,17 +876,20 @@ if start:
     latest = data.iloc[-1]
     prev = data.iloc[-2] if len(data) >= 2 else latest
 
-    latest_close = latest["close"]
-    day_pct = ((latest["close"] - prev["close"]) / prev["close"] * 100) if prev["close"] else 0
+    latest_close = safe_float(latest["close"])
+    prev_close = safe_float(prev["close"], latest_close)
+    day_pct = ((latest_close - prev_close) / prev_close * 100) if prev_close else 0
 
     if ticker.endswith(".SZ") or ticker.endswith(".SS"):
-        up_color = "#FF3B30"
-        down_color = "#00C853"
+        up_color = "#ef4444"
+        down_color = "#22c55e"
     else:
-        up_color = "#00C853"
-        down_color = "#FF3B30"
+        up_color = "#22c55e"
+        down_color = "#ef4444"
 
     df_plot = data.reset_index()
+    date_col = df_plot.columns[0]
+    df_plot["date_text"] = pd.to_datetime(df_plot[date_col]).dt.strftime("%m-%d")
     df_plot["x"] = range(len(df_plot))
 
     fig = go.Figure(data=[go.Candlestick(
@@ -762,19 +913,53 @@ if start:
         xaxis=dict(
             tickmode="array",
             tickvals=df_plot["x"][::tick_step],
-            ticktext=df_plot.iloc[:, 0].dt.strftime("%m-%d")[::tick_step],
+            ticktext=df_plot["date_text"][::tick_step],
             showgrid=False
         ),
-        yaxis=dict(title="价格", gridcolor="rgba(148,163,184,0.25)"),
+        yaxis=dict(
+            title="价格",
+            gridcolor="rgba(148,163,184,0.25)"
+        ),
         xaxis_rangeslider_visible=False,
         paper_bgcolor="rgba(255,255,255,0)",
         plot_bgcolor="rgba(255,255,255,0)"
     )
 
+    stock_news = fetch_stock_news(stock_name, ticker_input, max_items=8)
+    market_background = fetch_market_background(stock_name, max_items=4)
+
+    score_detail = calc_ai_score(data, latest, prev, stock_news)
+
     with right:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.subheader(f"📈 {ticker} K线走势")
         st.plotly_chart(fig, use_container_width=True)
         st.success("✅ K线加载完成")
+        st.markdown('</div>', unsafe_allow_html=True)
 
+        render_score_panel(score_detail)
+
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.subheader("📰 个股最新消息面")
+
+        if stock_news:
+            st.markdown('<div class="news-box"><div class="news-title">优先展示与个股相关的新闻，用于辅助判断短线情绪和事件驱动。</div>', unsafe_allow_html=True)
+            for n in stock_news:
+                st.markdown(f"- [{n['title']}]({n['link']})")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.info("暂未抓取到该股相关新闻。建议股票名称填写中文名，例如：中国长城、贵州茅台、宁德时代。")
+
+        with st.expander("查看市场背景参考，不作为核心判断"):
+            if market_background:
+                for n in market_background:
+                    st.markdown(f"- [{n['title']}]({n['link']})")
+            else:
+                st.write("暂无可用市场背景信息。")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.subheader("📌 技术指标摘要")
 
         col1, col2, col3 = st.columns(3)
@@ -797,71 +982,12 @@ if start:
             st.metric("KDJ-J", fmt_num(latest["kdj_j"]))
 
         with col6:
-            st.metric("成交量", f"{int(latest['volume']):,}")
+            st.metric("成交量", f"{int(safe_float(latest['volume'])):,}")
 
-    stock_news = fetch_stock_news(stock_name, ticker_input, max_items=8)
-    policy_news = fetch_policy_news(max_items=5)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    score_detail = calc_ai_score(data, latest, prev, stock_news, policy_news)
-    ai_score = score_detail["总分"]
-    color = score_color(ai_score)
-
-    with right:
-        st.subheader("🧠 AI科学评分")
-
-        st.markdown(
-            f"""
-            <div class="ai-card">
-                <div class="ai-card-title">🧠 AI综合评分</div>
-                <div class="ai-card-body">
-                    <div class="score-big" style="color:{color};">{ai_score}<span class="score-sub"> / 100</span></div>
-                    <div style="font-size:20px;font-weight:800;margin-top:8px;">{html.escape(score_detail["评级"])}</div>
-                    <div style="margin-top:10px;">{html.escape(score_detail["操作倾向"])}</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.progress(ai_score / 100)
-
-        s1, s2, s3, s4, s5 = st.columns(5)
-
-        with s1:
-            st.metric("趋势", f'{score_detail["趋势结构"]}/30')
-        with s2:
-            st.metric("动能", f'{score_detail["动能指标"]}/20')
-        with s3:
-            st.metric("资金", f'{score_detail["成交量资金"]}/20')
-        with s4:
-            st.metric("风险", f'{score_detail["风险状态"]}/15')
-        with s5:
-            st.metric("消息", f'{score_detail["消息政策"]}/15')
-
-        st.caption(
-            f"近5日涨幅 {score_detail['近5日涨幅']:.2f}%；"
-            f"近10日波动率 {score_detail['近10日波动率']:.2f}；"
-            f"消息面利好词命中 {score_detail['利好词命中']} 个，利空词命中 {score_detail['利空词命中']} 个。"
-        )
-
-        st.subheader("📰 最新消息面")
-
-        if stock_news:
-            for n in stock_news:
-                st.markdown(f"- [{n['title']}]({n['link']})")
-        else:
-            st.info("暂未抓取到该股相关新闻。建议股票名称填写中文名，例如：中国长城、贵州茅台、宁德时代。")
-
-        st.subheader("🏛️ 政策面参考")
-
-        if policy_news:
-            for n in policy_news:
-                st.markdown(f"- [{n['title']}]({n['link']})")
-        else:
-            st.info("暂未抓取到政策面新闻。")
-
-    news_text = "\n".join([f"- {n['title']}" for n in stock_news])
-    policy_text = "\n".join([f"- {n['title']}" for n in policy_news])
+    stock_news_text = "\n".join([f"- {n['title']}" for n in stock_news])
+    market_background_text = "\n".join([f"- {n['title']}" for n in market_background])
 
     prompt = f"""
 你是一个专业A股短线投资分析助手，请基于A股交易逻辑分析以下个股。
@@ -886,7 +1012,7 @@ if start:
 - KDJ K：{fmt_num(latest["kdj_k"])}
 - KDJ D：{fmt_num(latest["kdj_d"])}
 - KDJ J：{fmt_num(latest["kdj_j"])}
-- 最新成交量：{int(latest["volume"])}
+- 最新成交量：{int(safe_float(latest["volume"]))}
 
 AI科学评分：
 - 综合分数：{score_detail["总分"]}/100
@@ -896,68 +1022,66 @@ AI科学评分：
 - 动能指标：{score_detail["动能指标"]}/20
 - 成交量资金：{score_detail["成交量资金"]}/20
 - 风险状态：{score_detail["风险状态"]}/15
-- 消息政策：{score_detail["消息政策"]}/15
+- 消息面：{score_detail["消息面"]}/15
 - 近5日涨幅：{score_detail["近5日涨幅"]:.2f}%
 - 近10日波动率：{score_detail["近10日波动率"]:.2f}
 
-最新个股消息面：
-{news_text if news_text else "暂无抓取到明确的个股新闻"}
+个股最新消息面：
+{stock_news_text if stock_news_text else "暂无抓取到明确的个股新闻"}
 
-最新政策面/市场环境：
-{policy_text if policy_text else "暂无抓取到明确政策新闻"}
+市场背景参考：
+{market_background_text if market_background_text else "暂无抓取到明确市场背景信息"}
 
-请严格用中文输出。
-请不要输出英文。
-请不要写空泛内容。
-请让普通小白用户也能看懂。
-请用短句、清晰判断、明确依据。
+要求：
+1. 必须严格用中文输出。
+2. 不要输出英文。
+3. 不要空泛，要结合数据和新闻。
+4. 让普通小白也能看懂。
+5. 政策面和市场背景只作为辅助，不要喧宾夺主。
+6. 重点解释AI分数为什么是这个分数，以及这个分数对应什么操作。
+7. 不要承诺收益。
+8. 不要写绝对买入或绝对卖出，但要给出清晰短线操作倾向。
 
 请严格按照以下标题输出，每个标题必须单独占一行：
 
-一、AI评分解读
-说明为什么当前分数是 {score_detail["总分"]} 分。
-说明这个分数代表什么交易状态。
-说明当前更适合进攻、低吸、持有、减仓，还是观察。
+一、结论先看
+用3到5句话说明：
+- 这只股票现在处于什么状态。
+- 当前AI分数意味着什么。
+- 适合什么操作。
+- 最大机会是什么。
+- 最大风险是什么。
 
-二、短线趋势判断
+二、AI分数解读
+解释为什么当前分数是 {score_detail["总分"]} 分。
+分别解释趋势、动能、资金、风险、消息面对分数的影响。
+说明这个分数适合进攻、低吸、持有、减仓，还是观察。
+
+三、短线趋势判断
 结合K线位置、涨跌幅、均线、MACD、KDJ判断当前短线趋势。
 判断当前是强势上攻、震荡整理、缩量回调、放量下跌，还是情绪冲顶。
 说明判断依据。
 
-三、技术面分析
+四、技术面分析
 分析5日、10日、20日、60日均线。
 分析MACD是否转强或转弱。
 分析KDJ是否存在超买、钝化或回落风险。
 给出关键支撑位和压力位。
 
-四、资金面分析
+五、资金面分析
 结合成交量判断是否有资金异动。
 判断当前更像短线炒作还是趋势资金配置。
 判断是否存在追高风险。
 
-五、消息面与政策面分析
+六、消息面与观察计划
 总结个股新闻对股价的潜在影响。
-总结政策面和市场环境对短线交易的影响。
-判断消息面对该股是偏利好、偏利空，还是中性。
-
-六、综合结论
-给出个股一句话结论。
-说明适合短线、中线、中长线，还是只适合观察。
-列出核心机会。
-列出核心风险。
-
-七、AI观察计划
-请直接给出偏交易计划的表达：
-什么情况下可以考虑低吸。
-什么情况下可以考虑继续持有。
-什么情况下可以考虑减仓或止损。
-不同风险偏好下的操作建议。
-
-注意：
-- 不要承诺收益。
-- 不要写绝对买入或绝对卖出。
-- 但要给出清晰的短线操作倾向。
-- 结论必须有依据。
+如果个股新闻不足，请明确说明消息面证据不足，不要硬编。
+说明市场背景是否真正影响该股。
+最后给出：
+- 什么情况下可以考虑低吸。
+- 什么情况下可以继续持有。
+- 什么情况下应减仓或止损。
+- 不同风险偏好下的操作建议。
 """
 
     try:
@@ -969,7 +1093,10 @@ AI科学评分：
         result = response.choices[0].message.content
 
         with right:
+            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+            st.subheader("🤖 AI解读")
             render_ai_visual_result(result, score_detail)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     except Exception as e:
         with right:
