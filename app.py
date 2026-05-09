@@ -15,8 +15,6 @@ st.set_page_config(page_title="AI股票分析平台", layout="wide")
 # =========================================================
 DEEPSEEK_API_KEY = "sk-34bde63deba4488c939677b2a93fbb01"
 
-# Streamlit Cloud 推荐使用 Secrets：
-# DEEPSEEK_API_KEY="你的DeepSeek key"
 try:
     if DEEPSEEK_API_KEY == "在这里粘贴你的DeepSeek key":
         DEEPSEEK_API_KEY = st.secrets.get("DEEPSEEK_API_KEY", "")
@@ -31,63 +29,158 @@ if DEEPSEEK_API_KEY:
     )
 
 # =========================================================
-# 🎨 稳定 UI
+# 🎨 UI 样式：修复顶部标题、输入框重色、运行中灰字问题
 # =========================================================
 st.markdown(
     """
 <style>
+/* 页面背景 */
 .stApp {
     background:
-      radial-gradient(circle at 12% 8%, rgba(37,99,235,0.12), transparent 28%),
-      radial-gradient(circle at 88% 8%, rgba(14,165,233,0.12), transparent 28%),
-      linear-gradient(135deg, #f7fbff 0%, #edf6ff 48%, #ffffff 100%);
+      radial-gradient(circle at 12% 8%, rgba(37,99,235,0.13), transparent 28%),
+      radial-gradient(circle at 88% 8%, rgba(14,165,233,0.13), transparent 28%),
+      linear-gradient(135deg, #f6fbff 0%, #eef7ff 46%, #ffffff 100%);
     color: #0f172a;
 }
+
+/* 顶部安全间距，避免标题被系统栏压住 */
 .block-container {
-    padding-top: 1.1rem;
+    padding-top: 2.2rem !important;
     padding-bottom: 2rem;
     max-width: 1480px;
 }
-h1, h2, h3 {
-    color: #0f172a;
+
+/* Streamlit 顶栏弱化 */
+header[data-testid="stHeader"] {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(18px);
 }
-[data-testid="stMarkdownContainer"] p, li {
-    color: #334155;
-    line-height: 1.65;
-}
-div[data-testid="stMetric"] {
+
+/* 标题区 */
+.hero-card {
     background: rgba(255,255,255,0.72);
     border: 1px solid rgba(226,232,240,0.95);
-    border-radius: 18px;
-    padding: 14px 16px;
-    box-shadow: 0 12px 30px rgba(15,23,42,0.06);
-}
-.stButton > button {
-    height: 48px;
-    border-radius: 15px;
-    font-weight: 850;
-    background: linear-gradient(135deg, #2563eb, #06b6d4);
-    color: white;
-    border: none;
-}
-.stTextInput input {
-    border-radius: 14px;
-    background: rgba(255,255,255,0.92);
-}
-div[data-baseweb="select"] > div {
-    border-radius: 14px;
-    background: rgba(255,255,255,0.92);
+    box-shadow: 0 18px 48px rgba(15,23,42,0.08);
+    border-radius: 24px;
+    padding: 22px 26px;
+    margin-bottom: 18px;
+    backdrop-filter: blur(18px);
 }
 .main-title {
     font-size: 34px;
     font-weight: 950;
     color: #0f172a;
-    margin-bottom: 4px;
+    line-height: 1.15;
+    margin-bottom: 8px;
 }
 .sub-title {
     color: #64748b;
     font-size: 15px;
-    margin-bottom: 18px;
+}
+
+/* 标题文字 */
+h1, h2, h3 {
+    color: #0f172a !important;
+}
+[data-testid="stMarkdownContainer"] p, li {
+    color: #334155;
+    line-height: 1.65;
+}
+
+/* 卡片 */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255,255,255,0.70);
+    border-radius: 22px;
+    border: 1px solid rgba(226,232,240,0.95);
+    box-shadow: 0 16px 38px rgba(15,23,42,0.06);
+    backdrop-filter: blur(18px);
+}
+
+/* 输入框：重点修复背景与文字重合 */
+.stTextInput input {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 14px !important;
+    height: 44px !important;
+    font-weight: 700 !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.stTextInput input::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1 !important;
+}
+
+/* 运行中 Streamlit 会临时禁用控件，这里强制保持可读 */
+.stTextInput input:disabled {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #0f172a !important;
+}
+
+/* 下拉框：重点修复文字和背景 */
+div[data-baseweb="select"] > div {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 14px !important;
+    min-height: 44px !important;
+}
+div[data-baseweb="select"] span {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+}
+div[data-baseweb="select"] svg {
+    color: #334155 !important;
+}
+
+/* label */
+label, .stTextInput label, .stSelectbox label {
+    color: #334155 !important;
+    font-weight: 800 !important;
+}
+
+/* 按钮 */
+.stButton > button {
+    height: 48px;
+    border-radius: 15px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #2563eb, #06b6d4);
+    color: white !important;
+    border: none;
+    box-shadow: 0 12px 28px rgba(37,99,235,0.25);
+}
+.stButton > button:hover {
+    filter: brightness(1.04);
+    border: none;
+}
+
+/* 指标卡 */
+div[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(226,232,240,0.95);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 12px 30px rgba(15,23,42,0.06);
+}
+
+/* 信息提示 */
+div[data-testid="stAlert"] {
+    border-radius: 16px;
+}
+
+/* 小屏适配 */
+@media (max-width: 900px) {
+    .block-container {
+        padding-top: 1.4rem !important;
+    }
+    .main-title {
+        font-size: 28px;
+    }
+    .hero-card {
+        padding: 18px 18px;
+    }
 }
 </style>
 """,
@@ -594,9 +687,13 @@ def render_ai_cards(ai_text, score_detail, trade_levels, risk):
 # =========================================================
 # 页面主体
 # =========================================================
-st.markdown('<div class="main-title">📊 AI股票分析平台</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-title">趋势判断 · 消息面辅助 · AI评分 · 买卖点地图 · 小白可读</div>',
+    """
+<div class="hero-card">
+    <div class="main-title">📊 AI股票分析平台</div>
+    <div class="sub-title">趋势判断 · 消息面辅助 · AI评分 · 买卖点地图 · 小白可读</div>
+</div>
+""",
     unsafe_allow_html=True
 )
 
@@ -676,7 +773,6 @@ if start:
     prev_close = safe_float(prev["close"], latest_close)
     day_pct = ((latest_close - prev_close) / prev_close * 100) if prev_close else 0
 
-    # A股：红涨绿跌；美股：绿涨红跌
     if ticker.endswith(".SZ") or ticker.endswith(".SS"):
         up_color = "#ef4444"
         down_color = "#22c55e"
