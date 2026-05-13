@@ -14,13 +14,13 @@ except Exception as e:
 
 print(f"获取到 {len(stock_list)} 只股票")
 
-# 只保留正常A股
+# 去掉北交所
 stock_list = stock_list[
     (~stock_list["代码"].astype(str).str.contains("BJ"))
 ]
 
-# 前300只先测试
-stock_list = stock_list.head(300)
+# 扫描1000只股票（稳定版）
+stock_list = stock_list.head(1000)
 
 for idx, row in stock_list.iterrows():
 
@@ -36,6 +36,7 @@ for idx, row in stock_list.iterrows():
             adjust="qfq"
         )
 
+        # 数据不足跳过
         if df is None or df.empty or len(df) < 30:
             continue
 
@@ -50,30 +51,42 @@ for idx, row in stock_list.iterrows():
 
         score = 0
 
-        # 趋势
+        # =====================
+        # 趋势评分
+        # =====================
         if latest > ma5:
-            score += 20
+            score += 15
 
         if ma5 > ma10:
-            score += 20
+            score += 15
 
         if ma10 > ma20:
-            score += 20
+            score += 15
 
-        # 涨幅
+        # =====================
+        # 涨幅评分
+        # =====================
         pct = ((latest - prev) / prev) * 100
 
-        if pct > 3:
-            score += 15
-
-        # 成交量
-        vol = df["成交量"]
-        if vol.iloc[-1] > vol.tail(5).mean():
-            score += 15
-
-        # 强势形态
-        if latest >= close.tail(20).max() * 0.97:
+        if pct > 0:
             score += 10
+
+        if pct > 3:
+            score += 10
+
+        # =====================
+        # 成交量评分
+        # =====================
+        vol = df["成交量"]
+
+        if vol.iloc[-1] > vol.tail(5).mean() * 0.8:
+            score += 15
+
+        # =====================
+        # 强势形态评分
+        # =====================
+        if latest >= close.tail(20).max() * 0.95:
+            score += 20
 
         result.append({
             "代码": code,
@@ -83,19 +96,26 @@ for idx, row in stock_list.iterrows():
             "涨跌幅": round(pct, 2)
         })
 
-        time.sleep(0.05)
+        time.sleep(0.03)
 
     except Exception as e:
         print("错误:", e)
         continue
 
+# =====================
+# 输出CSV
+# =====================
 df_result = pd.DataFrame(result)
 
 if not df_result.empty:
+
     df_result = df_result.sort_values(
         by="AI评分",
         ascending=False
     )
+
+    # 只保留高分股
+    df_result = df_result[df_result["AI评分"] >= 70]
 
 df_result.to_csv(
     "a_stock_rank.csv",
