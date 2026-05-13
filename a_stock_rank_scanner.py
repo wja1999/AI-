@@ -4,7 +4,6 @@ import requests
 import pandas as pd
 import numpy as np
 
-
 print("开始扫描A股市场...")
 
 
@@ -358,9 +357,6 @@ def scan_one(stock):
 
     score_info = calculate_score(df)
 
-    if score_info["score"] < 85:
-        return None
-
     return {
         "代码": code,
         "名称": name,
@@ -392,10 +388,9 @@ for i, stock in enumerate(stocks, start=1):
 
     if item:
         results.append(item)
-        print(f"入选：{item['代码']} {item['名称']} {item['AI分数']}")
 
     if i % 100 == 0:
-        print(f"已扫描 {i}/{len(stocks)}，当前入选 {len(results)} 只")
+        print(f"已扫描 {i}/{len(stocks)}，当前已生成 {len(results)} 条评分")
 
     time.sleep(0.03)
 
@@ -421,4 +416,5 @@ result_df.to_csv(
 )
 
 print("扫描完成，已生成 a_stock_rank.csv")
+print(f"总评分股票数：{len(result_df)}")
 print(result_df.head(20))
