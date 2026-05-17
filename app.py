@@ -19,7 +19,8 @@ from plotly.subplots import make_subplots
 # 本地运行：直接把下面引号里的内容替换成你的 DeepSeek Key
 # Streamlit Cloud：也可以在 Secrets 里配置 DEEPSEEK_API_KEY
 # =====================================================
-DEEPSEEK_API_KEY = "sk-34bde63deba4488c939677b2a93fbb01"
+import streamlit as st
+DEEPSEEK_API_KEY = st.secrets["DEEPSEEK_API_KEY"]
 
 try:
     if DEEPSEEK_API_KEY == "这里填你的DeepSeek key":
